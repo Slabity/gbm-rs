@@ -1,3 +1,6 @@
+#[macro_use]
+extern crate bitflags;
+
 mod ffi;
 
 use std::fs::File;
@@ -25,15 +28,15 @@ impl<'a> Device<'a> {
         }
     }
 
-    pub fn buffer(&'a self, size: (u32, u32), format: u32, flags: u32) -> Buffer<'a> {
+    pub fn buffer(&'a self, size: (u32, u32), format: Format, flags: BufferFlags) -> Buffer<'a> {
         let (width, height) = size;
         Buffer {
             device: self,
-            raw: ffi::GbmBufferObject::new(&self.raw, width, height, format, flags)
+            raw: ffi::GbmBufferObject::new(&self.raw, width, height, format as u32, flags.bits())
         }
     }
 
-    pub fn surface(&'a self, size: (u32, u32), format: u32, flags: u32) -> Surface<'a> {
+    pub fn surface(&'a self, size: (u32, u32), format: Format, flags: BufferFlags) -> Surface<'a> {
         let (width, height) = size;
         Surface::from_device(self, width, height, format, flags)
     }
@@ -46,10 +49,10 @@ pub struct Surface<'a> {
 }
 
 impl<'a> Surface<'a> {
-    pub fn from_device(device: &'a Device, width: u32, height: u32, format: u32, flags: u32) -> Surface<'a> {
+    pub fn from_device(device: &'a Device, width: u32, height: u32, format: Format, flags: BufferFlags) -> Surface<'a> {
         Surface {
             device: device,
-            raw: ffi::GbmSurface::new(&device.raw, width, height, format, flags),
+            raw: ffi::GbmSurface::new(&device.raw, width, height, format as u32, flags.bits()),
             front_lock: Mutex::new(())
         }
     }
@@ -92,4 +95,19 @@ impl<'a> Drop for FrontBuffer<'a> {
     fn drop(&mut self) {
         self.raw.release(&self.surface.raw);
     }
+}
+
+bitflags! {
+    pub flags BufferFlags: u32 {
+        const SCANOUT   = ffi::gbm_bo_flags::GBM_BO_USE_SCANOUT as u32,
+        const CURSOR    = ffi::gbm_bo_flags::GBM_BO_USE_CURSOR as u32,
+        const RENDERING = ffi::gbm_bo_flags::GBM_BO_USE_RENDERING as u32,
+        const WRITE     = ffi::gbm_bo_flags::GBM_BO_USE_WRITE as u32,
+        const LINEAR    = ffi::gbm_bo_flags::GBM_BO_USE_LINEAR as u32
+    }
+}
+
+pub enum Format {
+    XRGB8888 = ffi::gbm_bo_format::GBM_BO_FORMAT_XRGB8888 as isize,
+    ARGB8888 = ffi::gbm_bo_format::GBM_BO_FORMAT_ARGB8888 as isize
 }
