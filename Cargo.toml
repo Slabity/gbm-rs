@@ -3,6 +3,7 @@ name = "gbm"
 description = "High-level access to libgbm."
 version = "0.0.0"
 authors = ["Tyler Slabinski <tslabinski@slabity.net>"]
+repository = "https://github.com/Slabity/gbm-rs.git"
 license = "LGPL-3.0"
 build = "build.rs"
 
