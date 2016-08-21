@@ -2,6 +2,8 @@ mod gbm_shim;
 
 pub use self::gbm_shim::*;
 use std::os::unix::io::RawFd;
+use std::mem::transmute;
+use std::os::raw::c_void;
 
 #[derive(Debug)]
 pub struct GbmDevice {
@@ -53,3 +55,119 @@ impl Drop for GbmSurface {
     }
 }
 
+#[derive(Debug)]
+pub struct GbmBufferObject {
+    pub raw: *mut gbm_bo
+}
+
+impl GbmBufferObject {
+    pub fn new(device: &GbmDevice, width: u32, height: u32, format: u32, flags: u32) -> GbmBufferObject {
+        let ptr = unsafe {
+            gbm_bo_create(device.raw, width, height, format, flags)
+        };
+
+        GbmBufferObject {
+            raw: ptr
+        }
+    }
+
+    pub fn width(&self) -> u32 {
+        unsafe {
+            gbm_bo_get_width(self.raw)
+        }
+    }
+
+    pub fn height(&self) -> u32 {
+        unsafe {
+            gbm_bo_get_height(self.raw)
+        }
+    }
+
+    pub fn stride(&self) -> u32 {
+        unsafe {
+            gbm_bo_get_stride(self.raw)
+        }
+    }
+
+    pub fn format(&self) -> u32 {
+        unsafe {
+            gbm_bo_get_format(self.raw)
+        }
+    }
+
+    pub fn handle(&self) -> u64 {
+        unsafe {
+            transmute(gbm_bo_get_handle(self.raw))
+        }
+    }
+
+    pub unsafe fn set_user_data(&self, data: *mut c_void) {
+        gbm_bo_set_user_data(self.raw, data, None);
+    }
+}
+
+impl Drop for GbmBufferObject {
+    fn drop(&mut self) {
+        unsafe {
+            gbm_bo_destroy(self.raw);
+        }
+    }
+}
+
+#[derive(Debug)]
+// We have a separate buffer object for ones retrieved from the surface
+pub struct GbmFrontBufferObject {
+    pub raw: *mut gbm_bo
+}
+
+impl GbmFrontBufferObject {
+    pub fn lock(surface: &GbmSurface) -> GbmFrontBufferObject {
+        let ptr = unsafe {
+            gbm_surface_lock_front_buffer(surface.raw)
+        };
+
+        GbmFrontBufferObject {
+            raw: ptr
+        }
+    }
+
+    pub fn release(&self, surface: &GbmSurface) {
+        unsafe {
+            gbm_surface_release_buffer(surface.raw, self.raw)
+        };
+    }
+
+    pub fn width(&self) -> u32 {
+        unsafe {
+            gbm_bo_get_width(self.raw)
+        }
+    }
+
+    pub fn height(&self) -> u32 {
+        unsafe {
+            gbm_bo_get_height(self.raw)
+        }
+    }
+
+    pub fn stride(&self) -> u32 {
+        unsafe {
+            gbm_bo_get_stride(self.raw)
+        }
+    }
+
+    pub fn format(&self) -> u32 {
+        unsafe {
+            gbm_bo_get_format(self.raw)
+        }
+    }
+
+    pub fn handle(&self) -> u64 {
+        unsafe {
+            transmute(gbm_bo_get_handle(self.raw))
+        }
+    }
+
+    pub unsafe fn set_user_data(&self, data: *mut c_void) {
+        gbm_bo_set_user_data(self.raw, data, None);
+    }
+}
