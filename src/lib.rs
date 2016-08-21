@@ -32,6 +32,11 @@ impl<'a> Device<'a> {
             raw: ffi::GbmBufferObject::new(&self.raw, width, height, format, flags)
         }
     }
+
+    pub fn surface(&'a self, size: (u32, u32), format: u32, flags: u32) -> Surface<'a> {
+        let (width, height) = size;
+        Surface::from_device(self, width, height, format, flags)
+    }
 }
 
 pub struct Surface<'a> {
