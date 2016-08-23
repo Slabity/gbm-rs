@@ -83,6 +83,22 @@ pub struct Buffer<'a, T> {
 }
 
 impl<'a, T> Buffer<'a, T> {
+    pub fn size(&self) -> (u32, u32) {
+        (self.raw.width(), self.raw.height())
+    }
+
+    pub fn stride(&self) -> u32 {
+        self.raw.stride()
+    }
+
+    pub fn format(&self) -> u32 {
+        self.raw.format()
+    }
+
+    pub fn handle(&self) -> u64 {
+        self.raw.handle()
+    }
+
     pub unsafe fn set_user_data(&self, data: *mut c_void) {
         self.raw.set_user_data(data);
     }
