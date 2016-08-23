@@ -100,6 +100,10 @@ impl<'a> FrontBuffer<'a> {
     pub unsafe fn set_user_data(&self, data: *mut c_void) {
         self.raw.set_user_data(data);
     }
+
+    pub unsafe fn raw(&self) -> *mut c_void {
+        self.raw.raw as *mut _
+    }
 }
 
 impl<'a> Drop for FrontBuffer<'a> {
