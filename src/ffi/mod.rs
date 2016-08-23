@@ -45,6 +45,22 @@ impl GbmSurface {
             raw: ptr
         }
     }
+
+    pub fn lock_front_buffer(&self) -> GbmBufferObject {
+        let ptr = unsafe {
+            gbm_surface_lock_front_buffer(self.raw)
+        };
+
+        GbmBufferObject {
+            raw: ptr
+        }
+    }
+
+    pub fn release_front_buffer(&self, buffer: GbmBufferObject) {
+        unsafe {
+            gbm_surface_release_buffer(self.raw, buffer.raw);
+        }
+    }
 }
 
 impl Drop for GbmSurface {
@@ -114,60 +130,3 @@ impl Drop for GbmBufferObject {
     }
 }
 
-#[derive(Debug)]
-// We have a separate buffer object for ones retrieved from the surface
-pub struct GbmFrontBufferObject {
-    pub raw: *mut gbm_bo
-}
-
-impl GbmFrontBufferObject {
-    pub fn lock(surface: &GbmSurface) -> GbmFrontBufferObject {
-        let ptr = unsafe {
-            gbm_surface_lock_front_buffer(surface.raw)
-        };
-
-        GbmFrontBufferObject {
-            raw: ptr
-        }
-    }
-
-    pub fn release(&self, surface: &GbmSurface) {
-        unsafe {
-            gbm_surface_release_buffer(surface.raw, self.raw)
-        };
-    }
-
-    pub fn width(&self) -> u32 {
-        unsafe {
-            gbm_bo_get_width(self.raw)
-        }
-    }
-
-    pub fn height(&self) -> u32 {
-        unsafe {
-            gbm_bo_get_height(self.raw)
-        }
-    }
-
-    pub fn stride(&self) -> u32 {
-        unsafe {
-            gbm_bo_get_stride(self.raw)
-        }
-    }
-
-    pub fn format(&self) -> u32 {
-        unsafe {
-            gbm_bo_get_format(self.raw)
-        }
-    }
-
-    pub fn handle(&self) -> u64 {
-        unsafe {
-            transmute(gbm_bo_get_handle(self.raw))
-        }
-    }
-
-    pub unsafe fn set_user_data(&self, data: *mut c_void) {
-        gbm_bo_set_user_data(self.raw, data, None);
-    }
-}

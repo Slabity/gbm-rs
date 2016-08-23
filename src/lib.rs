@@ -28,11 +28,12 @@ impl<'a> Device<'a> {
         }
     }
 
-    pub fn buffer(&'a self, size: (u32, u32), format: Format, flags: BufferFlags) -> Buffer<'a> {
+    pub fn buffer(&'a self, size: (u32, u32), format: Format, flags: BufferFlags) -> Buffer<'a, ()> {
         let (width, height) = size;
         Buffer {
             device: self,
-            raw: ffi::GbmBufferObject::new(&self.raw, width, height, format as u32, flags.bits())
+            raw: ffi::GbmBufferObject::new(&self.raw, width, height, format as u32, flags.bits()),
+            _lock: ()
         }
     }
 
@@ -61,12 +62,12 @@ impl<'a> Surface<'a> {
         }
     }
 
-    pub fn lock_front_buffer(&'a self) -> FrontBuffer<'a> {
-        let guard = self.front_lock.lock();
-        FrontBuffer {
-            surface: self,
-            raw: ffi::GbmFrontBufferObject::lock(&self.raw),
-            _guard: guard.unwrap()
+    pub fn lock_front_buffer(&'a self) -> Buffer<'a, MutexGuard<'a, ()>> {
+        let guard = self.front_lock.lock().unwrap();
+        Buffer {
+            device: self.device,
+            raw: self.raw.lock_front_buffer(),
+            _lock: guard
         }
     }
 
@@ -75,40 +76,19 @@ impl<'a> Surface<'a> {
     }
 }
 
-pub struct Buffer<'a> {
+pub struct Buffer<'a, T> {
     device: &'a Device<'a>,
-    raw: ffi::GbmBufferObject
+    raw: ffi::GbmBufferObject,
+    _lock: T
 }
 
-impl<'a> Buffer<'a> {
+impl<'a, T> Buffer<'a, T> {
     pub unsafe fn set_user_data(&self, data: *mut c_void) {
         self.raw.set_user_data(data);
     }
 
     pub unsafe fn raw(&self) -> *mut c_void {
         self.raw.raw as *mut _
-    }
-}
-
-pub struct FrontBuffer<'a> {
-    surface: &'a Surface<'a>,
-    raw: ffi::GbmFrontBufferObject,
-    _guard: MutexGuard<'a, ()>
-}
-
-impl<'a> FrontBuffer<'a> {
-    pub unsafe fn set_user_data(&self, data: *mut c_void) {
-        self.raw.set_user_data(data);
-    }
-
-    pub unsafe fn raw(&self) -> *mut c_void {
-        self.raw.raw as *mut _
-    }
-}
-
-impl<'a> Drop for FrontBuffer<'a> {
-    fn drop(&mut self) {
-        self.raw.release(&self.surface.raw);
     }
 }
 
