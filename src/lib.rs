@@ -40,6 +40,10 @@ impl<'a> Device<'a> {
         let (width, height) = size;
         Surface::from_device(self, width, height, format, flags)
     }
+
+    pub unsafe fn raw(&self) -> *mut c_void {
+        self.raw.raw as *mut _
+    }
 }
 
 pub struct Surface<'a> {
@@ -66,6 +70,9 @@ impl<'a> Surface<'a> {
         }
     }
 
+    pub unsafe fn raw(&self) -> *mut c_void {
+        self.raw.raw as *mut _
+    }
 }
 
 pub struct Buffer<'a> {
@@ -76,6 +83,10 @@ pub struct Buffer<'a> {
 impl<'a> Buffer<'a> {
     pub unsafe fn set_user_data(&self, data: *mut c_void) {
         self.raw.set_user_data(data);
+    }
+
+    pub unsafe fn raw(&self) -> *mut c_void {
+        self.raw.raw as *mut _
     }
 }
 
