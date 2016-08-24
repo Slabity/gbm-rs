@@ -1,6 +1,7 @@
 mod gbm_shim;
 
 use errno::{Errno, errno, set_errno};
+use super::error::{Result, Error};
 
 pub use self::gbm_shim::*;
 use std::os::unix::io::RawFd;
@@ -15,12 +16,11 @@ macro_rules! gbm_cmd {
         let ptr = $func;
         if ptr.is_null() {
             let err = errno();
-            panic!("Error: {}", err);
+            return Err(Error::Ioctl(err));
         }
         ptr
     })
 }
-
 
 #[derive(Debug)]
 pub struct GbmDevice {
@@ -28,11 +28,13 @@ pub struct GbmDevice {
 }
 
 impl GbmDevice {
-    pub fn new(fd: RawFd) -> GbmDevice {
+    pub fn new(fd: RawFd) -> Result<GbmDevice> {
         let ptr = gbm_cmd!(gbm_create_device(fd));
-        GbmDevice {
+        let dev = GbmDevice {
             raw: ptr
-        }
+        };
+
+        Ok(dev)
     }
 }
 
@@ -49,18 +51,22 @@ pub struct GbmSurface {
 }
 
 impl GbmSurface {
-    pub fn new(device: &GbmDevice, width: u32, height: u32, format: u32, flags: u32) -> GbmSurface {
+    pub fn new(device: &GbmDevice, width: u32, height: u32, format: u32, flags: u32) -> Result<GbmSurface> {
         let ptr = gbm_cmd!(gbm_surface_create(device.raw, width, height, format, flags));
-        GbmSurface {
+        let surface = GbmSurface {
             raw: ptr
-        }
+        };
+
+        Ok(surface)
     }
 
-    pub fn lock_front_buffer(&self) -> GbmBufferObject {
+    pub fn lock_front_buffer(&self) -> Result<GbmBufferObject> {
         let ptr = gbm_cmd!(gbm_surface_lock_front_buffer(self.raw));
-        GbmBufferObject {
+        let buffer = GbmBufferObject {
             raw: ptr
-        }
+        };
+
+        Ok(buffer)
     }
 
     pub fn release_front_buffer(&self, buffer: &GbmBufferObject) {
@@ -81,11 +87,13 @@ pub struct GbmBufferObject {
 }
 
 impl GbmBufferObject {
-    pub fn new(device: &GbmDevice, width: u32, height: u32, format: u32, flags: u32) -> GbmBufferObject {
+    pub fn new(device: &GbmDevice, width: u32, height: u32, format: u32, flags: u32) -> Result<GbmBufferObject> {
         let ptr = gbm_cmd!(gbm_bo_create(device.raw, width, height, format, flags));
-        GbmBufferObject {
+        let buffer = GbmBufferObject {
             raw: ptr
-        }
+        };
+
+        Ok(buffer)
     }
 
     pub fn width(&self) -> u32 {

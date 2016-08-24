@@ -3,6 +3,8 @@ extern crate bitflags;
 extern crate errno;
 
 mod ffi;
+pub mod error;
+use error::Result;
 
 use std::fs::File;
 use std::os::unix::io::AsRawFd;
@@ -23,23 +25,25 @@ impl<'a> AsRef<File> for Device<'a> {
 }
 
 impl<'a> Device<'a> {
-    pub fn from_file(file: &'a File) -> Device<'a> {
-        Device {
+    pub fn from_file(file: &'a File) -> Result<Device<'a>> {
+        let dev = Device {
             file: file,
-            raw: ffi::GbmDevice::new(file.as_raw_fd())
-        }
+            raw: try!(ffi::GbmDevice::new(file.as_raw_fd()))
+        };
+        Ok(dev)
     }
 
-    pub fn buffer(&'a self, size: (u32, u32), format: Format, flags: BufferFlags) -> Buffer<'a> {
+    pub fn buffer(&'a self, size: (u32, u32), format: Format, flags: BufferFlags) -> Result<Buffer<'a>> {
         let (width, height) = size;
-        Buffer {
+        let buffer = Buffer {
             device: PhantomData,
-            raw: ffi::GbmBufferObject::new(&self.raw, width, height, format as u32, flags.bits()),
+            raw: try!(ffi::GbmBufferObject::new(&self.raw, width, height, format as u32, flags.bits())),
             surface: None
-        }
+        };
+        Ok(buffer)
     }
 
-    pub fn surface(&'a self, size: (u32, u32), format: Format, flags: BufferFlags) -> Surface<'a> {
+    pub fn surface(&'a self, size: (u32, u32), format: Format, flags: BufferFlags) -> Result<Surface<'a>> {
         let (width, height) = size;
         Surface::from_device(self, width, height, format, flags)
     }
@@ -55,19 +59,21 @@ pub struct Surface<'a> {
 }
 
 impl<'a> Surface<'a> {
-    pub fn from_device(device: &'a Device, width: u32, height: u32, format: Format, flags: BufferFlags) -> Surface<'a> {
-        Surface {
+    pub fn from_device(device: &'a Device, width: u32, height: u32, format: Format, flags: BufferFlags) -> Result<Surface<'a>> {
+        let surface = Surface {
             device: PhantomData,
-            raw: ffi::GbmSurface::new(&device.raw, width, height, format as u32, flags.bits()),
-        }
+            raw: try!(ffi::GbmSurface::new(&device.raw, width, height, format as u32, flags.bits()))
+        };
+        Ok(surface)
     }
 
-    pub unsafe fn lock_front_buffer(&'a self) -> Buffer<'a> {
-        Buffer {
+    pub unsafe fn lock_front_buffer(&'a self) -> Result<Buffer<'a>> {
+        let buffer = Buffer {
             device: PhantomData,
-            raw: self.raw.lock_front_buffer(),
+            raw: try!(self.raw.lock_front_buffer()),
             surface: Some(self)
-        }
+        };
+        Ok(buffer)
     }
 
     pub unsafe fn raw(&self) -> *mut c_void {
