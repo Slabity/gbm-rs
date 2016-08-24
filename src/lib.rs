@@ -6,10 +6,11 @@ mod ffi;
 
 use std::fs::File;
 use std::os::unix::io::AsRawFd;
-use std::sync::{Mutex, MutexGuard};
 use std::os::raw::c_void;
+use std::rc::Rc;
+use std::marker::PhantomData;
 
-
+///
 pub struct Device<'a> {
     file: &'a File,
     raw: ffi::GbmDevice
@@ -29,12 +30,12 @@ impl<'a> Device<'a> {
         }
     }
 
-    pub fn buffer(&'a self, size: (u32, u32), format: Format, flags: BufferFlags) -> Buffer<'a, ()> {
+    pub fn buffer(&'a self, size: (u32, u32), format: Format, flags: BufferFlags) -> Buffer<'a> {
         let (width, height) = size;
         Buffer {
-            device: self,
+            device: PhantomData,
             raw: ffi::GbmBufferObject::new(&self.raw, width, height, format as u32, flags.bits()),
-            _lock: ()
+            surface: None
         }
     }
 
@@ -49,26 +50,23 @@ impl<'a> Device<'a> {
 }
 
 pub struct Surface<'a> {
-    device: &'a Device<'a>,
+    device: PhantomData<Device<'a>>,
     raw: ffi::GbmSurface,
-    front_lock: Mutex<()>
 }
 
 impl<'a> Surface<'a> {
     pub fn from_device(device: &'a Device, width: u32, height: u32, format: Format, flags: BufferFlags) -> Surface<'a> {
         Surface {
-            device: device,
+            device: PhantomData,
             raw: ffi::GbmSurface::new(&device.raw, width, height, format as u32, flags.bits()),
-            front_lock: Mutex::new(())
         }
     }
 
-    pub fn lock_front_buffer(&'a self) -> Buffer<'a, MutexGuard<'a, ()>> {
-        let guard = self.front_lock.lock().unwrap();
+    pub unsafe fn lock_front_buffer(&'a self) -> Buffer<'a> {
         Buffer {
-            device: self.device,
+            device: PhantomData,
             raw: self.raw.lock_front_buffer(),
-            _lock: guard
+            surface: Some(self)
         }
     }
 
@@ -77,13 +75,13 @@ impl<'a> Surface<'a> {
     }
 }
 
-pub struct Buffer<'a, T> {
-    device: &'a Device<'a>,
+pub struct Buffer<'a> {
+    device: PhantomData<Device<'a>>,
     raw: ffi::GbmBufferObject,
-    _lock: T
+    surface: Option<&'a Surface<'a>>
 }
 
-impl<'a, T> Buffer<'a, T> {
+impl<'a> Buffer<'a> {
     pub fn size(&self) -> (u32, u32) {
         (self.raw.width(), self.raw.height())
     }
@@ -96,16 +94,31 @@ impl<'a, T> Buffer<'a, T> {
         self.raw.format()
     }
 
-    pub fn handle(&self) -> u64 {
+    pub fn handle(&self) -> *mut c_void {
         self.raw.handle()
     }
 
-    pub unsafe fn set_user_data(&self, data: *mut c_void) {
+    pub fn set_user_data<D>(&self, data: Option<Rc<D>>) {
         self.raw.set_user_data(data);
+    }
+
+    pub unsafe fn get_user_data<D>(&self) -> Option<Rc<D>> {
+        self.raw.get_user_data()
     }
 
     pub unsafe fn raw(&self) -> *mut c_void {
         self.raw.raw as *mut _
+    }
+}
+
+impl<'a> Drop for Buffer<'a> {
+    fn drop(&mut self) {
+        match self.surface {
+            Some(surface) => {
+                    surface.raw.release_front_buffer(&self.raw);
+            },
+            None => self.raw.destroy()
+        }
     }
 }
 
