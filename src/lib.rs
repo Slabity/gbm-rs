@@ -51,8 +51,7 @@ impl<'a> Device<'a> {
 
     /// Creates a `Surface` using the given size and parameters.
     pub fn surface(&'a self, size: (u32, u32), format: Format, flags: BufferFlags) -> Result<Surface<'a>> {
-        let (width, height) = size;
-        Surface::from_device(self, width, height, format, flags)
+        Surface::from_device(self, size, format, flags)
     }
 
     /// Returns a pointer to the underlying `gbm_device`
