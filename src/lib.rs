@@ -12,7 +12,11 @@ use std::os::raw::c_void;
 use std::rc::Rc;
 use std::marker::PhantomData;
 
+/// A `Device` is a handle to the character device file that provides libgbm
+/// access.
 ///
+/// A `Device` does not own the handle to the file used. It is the responsibility
+/// of the program to open and close the file.
 pub struct Device<'a> {
     file: &'a File,
     raw: ffi::GbmDevice
@@ -25,6 +29,7 @@ impl<'a> AsRef<File> for Device<'a> {
 }
 
 impl<'a> Device<'a> {
+    /// Creates a `Device` from a file reference.
     pub fn from_file(file: &'a File) -> Result<Device<'a>> {
         let dev = Device {
             file: file,
@@ -33,6 +38,7 @@ impl<'a> Device<'a> {
         Ok(dev)
     }
 
+    /// Creates a `Buffer` using the given size and parameters.
     pub fn buffer(&'a self, size: (u32, u32), format: Format, flags: BufferFlags) -> Result<Buffer<'a>> {
         let (width, height) = size;
         let buffer = Buffer {
@@ -43,23 +49,30 @@ impl<'a> Device<'a> {
         Ok(buffer)
     }
 
+    /// Creates a `Surface` using the given size and parameters.
     pub fn surface(&'a self, size: (u32, u32), format: Format, flags: BufferFlags) -> Result<Surface<'a>> {
         let (width, height) = size;
         Surface::from_device(self, width, height, format, flags)
     }
 
+    /// Returns a pointer to the underlying `gbm_device`
     pub unsafe fn raw(&self) -> *mut c_void {
         self.raw.raw as *mut _
     }
 }
 
+/// A `Surface` is a handle to the buffers used for primary rendering.
+///
+/// A `Surface` cannot outlive the `Device` it was created from.
 pub struct Surface<'a> {
     device: PhantomData<Device<'a>>,
     raw: ffi::GbmSurface,
 }
 
 impl<'a> Surface<'a> {
-    pub fn from_device(device: &'a Device, width: u32, height: u32, format: Format, flags: BufferFlags) -> Result<Surface<'a>> {
+    /// Creates a surface from a `Device` and the given parameters.
+    pub fn from_device(device: &'a Device, size: (u32, u32), format: Format, flags: BufferFlags) -> Result<Surface<'a>> {
+        let (width, height) = size;
         let surface = Surface {
             device: PhantomData,
             raw: try!(ffi::GbmSurface::new(&device.raw, width, height, format as u32, flags.bits()))
@@ -67,6 +80,12 @@ impl<'a> Surface<'a> {
         Ok(surface)
     }
 
+    /// Locks the front buffer to be used for display.
+    ///
+    /// # Safety
+    /// This method should be called once, and only once per buffer swap.
+    /// Calling, this method before a buffer swap, or multiple times between
+    /// swaps will result in undefined behavior. Likely crashes.
     pub unsafe fn lock_front_buffer(&'a self) -> Result<Buffer<'a>> {
         let buffer = Buffer {
             device: PhantomData,
@@ -76,6 +95,7 @@ impl<'a> Surface<'a> {
         Ok(buffer)
     }
 
+    /// Returns a pointer to the underlying `gbm_surface`
     pub unsafe fn raw(&self) -> *mut c_void {
         self.raw.raw as *mut _
     }
@@ -88,30 +108,45 @@ pub struct Buffer<'a> {
 }
 
 impl<'a> Buffer<'a> {
+    /// Returns the width and height of the buffer.
     pub fn size(&self) -> (u32, u32) {
         (self.raw.width(), self.raw.height())
     }
 
+    /// Returns the stride of the buffer.
     pub fn stride(&self) -> u32 {
         self.raw.stride()
     }
 
+    /// Returns the format of the buffer.
     pub fn format(&self) -> u32 {
         self.raw.format()
     }
 
+    /// Returns the raw handle to the buffer.
     pub fn handle(&self) -> *mut c_void {
         self.raw.handle()
     }
 
+    /// Attach a reference counted object to the buffer. This can be
+    /// retrieved again using `get_user_data`
+    ///
+    /// When this buffer is destroyed, it will automatically destroy the
+    /// reference.
     pub fn set_user_data<D>(&self, data: Option<Rc<D>>) {
         self.raw.set_user_data(data);
     }
 
+    /// Retrieves the reference counted data set using `set_user_data`.
+    ///
+    /// # Safety
+    /// Using the wrong type will result in the data being interpretted
+    /// incorrectly.
     pub unsafe fn get_user_data<D>(&self) -> Option<Rc<D>> {
         self.raw.get_user_data()
     }
 
+    /// Returns a pointer to the underlying `gbm_buffer`
     pub unsafe fn raw(&self) -> *mut c_void {
         self.raw.raw as *mut _
     }
