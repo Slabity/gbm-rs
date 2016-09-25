@@ -144,8 +144,9 @@ impl GbmBufferObject {
         if ptr.is_null() {
             return None;
         }
-        let rc: Rc<T> = *Box::from_raw(ptr);
-        Some(rc.clone())
+        let rc: Rc<T> = *Box::from_raw(ptr).clone();
+        self.set_user_data(Some(rc.clone()));
+        Some(rc)
     }
 
     pub fn destroy(&self) {
