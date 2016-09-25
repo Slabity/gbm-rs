@@ -140,22 +140,13 @@ impl GbmBufferObject {
     }
 
     pub unsafe fn get_user_data<T: Sized>(&self) -> Option<Rc<T>> {
-        println!("gbm_bo_get_user_data");
         let ptr = gbm_bo_get_user_data(self.raw) as *mut _;
         if ptr.is_null() {
             return None;
         }
-
-        println!("Converting to box");
         let b: Box<Rc<T>> = Box::from_raw(ptr);
-
-        println!("Cloning");
         let clone = b.as_ref().clone();
-
-        println!("Converting to raw");
         Box::into_raw(b);
-
-        println!("Returning clone");
         Some(clone)
     }
 
