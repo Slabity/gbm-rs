@@ -17,29 +17,30 @@ use std::marker::PhantomData;
 ///
 /// A `Device` does not own the handle to the file used. It is the responsibility
 /// of the program to open and close the file.
-pub struct Device<'a> {
-    file: &'a File,
+pub struct Device<F> where F: AsRef<File> {
+    file: F,
     raw: ffi::GbmDevice
 }
 
-impl<'a> AsRef<File> for Device<'a> {
+impl<F> AsRef<File> for Device<F> where F: AsRef<File> {
     fn as_ref(&self) -> &File {
-        self.file
+        self.file.as_ref()
     }
 }
 
-impl<'a> Device<'a> {
+impl<'a, F> Device<F> where F: AsRef<File> {
     /// Creates a `Device` from a file reference.
-    pub fn from_file(file: &'a File) -> Result<Device<'a>> {
+    pub fn from_file(file: F) -> Result<Device<F>> {
+        let fd = file.as_ref().as_raw_fd();
         let dev = Device {
             file: file,
-            raw: try!(ffi::GbmDevice::new(file.as_raw_fd()))
+            raw: try!(ffi::GbmDevice::new(fd))
         };
         Ok(dev)
     }
 
     /// Creates a `Buffer` using the given size and parameters.
-    pub fn buffer(&'a self, size: (u32, u32), format: Format, flags: BufferFlags) -> Result<Buffer<'a>> {
+    pub fn buffer(&'a self, size: (u32, u32), format: Format, flags: BufferFlags) -> Result<Buffer<F>> {
         let (width, height) = size;
         let buffer = Buffer {
             device: PhantomData,
@@ -50,7 +51,7 @@ impl<'a> Device<'a> {
     }
 
     /// Creates a `Surface` using the given size and parameters.
-    pub fn surface(&'a self, size: (u32, u32), format: Format, flags: BufferFlags) -> Result<Surface<'a>> {
+    pub fn surface(&'a self, size: (u32, u32), format: Format, flags: BufferFlags) -> Result<Surface<F>> {
         Surface::from_device(self, size, format, flags)
     }
 
@@ -63,14 +64,14 @@ impl<'a> Device<'a> {
 /// A `Surface` is a handle to the buffers used for primary rendering.
 ///
 /// A `Surface` cannot outlive the `Device` it was created from.
-pub struct Surface<'a> {
-    device: PhantomData<Device<'a>>,
+pub struct Surface<F> where F: AsRef<File> {
+    device: PhantomData<Device<F>>,
     raw: ffi::GbmSurface,
 }
 
-impl<'a> Surface<'a> {
+impl<'a, F> Surface<F> where F: AsRef<File> {
     /// Creates a surface from a `Device` and the given parameters.
-    pub fn from_device(device: &'a Device, size: (u32, u32), format: Format, flags: BufferFlags) -> Result<Surface<'a>> {
+    pub fn from_device(device: &'a Device<F>, size: (u32, u32), format: Format, flags: BufferFlags) -> Result<Surface<F>> {
         let (width, height) = size;
         let surface = Surface {
             device: PhantomData,
@@ -85,7 +86,7 @@ impl<'a> Surface<'a> {
     /// This method should be called once, and only once per buffer swap.
     /// Calling, this method before a buffer swap, or multiple times between
     /// swaps will result in undefined behavior. Likely crashes.
-    pub unsafe fn lock_front_buffer(&'a self) -> Result<Buffer<'a>> {
+    pub unsafe fn lock_front_buffer(&'a self) -> Result<Buffer<'a, F>> {
         let buffer = Buffer {
             device: PhantomData,
             raw: try!(self.raw.lock_front_buffer()),
@@ -100,13 +101,13 @@ impl<'a> Surface<'a> {
     }
 }
 
-pub struct Buffer<'a> {
-    device: PhantomData<Device<'a>>,
+pub struct Buffer<'a, F> where F: 'a + AsRef<File> {
+    device: PhantomData<Device<F>>,
     raw: ffi::GbmBufferObject,
-    surface: Option<&'a Surface<'a>>
+    surface: Option<&'a Surface<F>>
 }
 
-impl<'a> Buffer<'a> {
+impl<'a, F> Buffer<'a, F> where F: AsRef<File> {
     /// Returns the width and height of the buffer.
     pub fn size(&self) -> (u32, u32) {
         (self.raw.width(), self.raw.height())
@@ -151,7 +152,7 @@ impl<'a> Buffer<'a> {
     }
 }
 
-impl<'a> Drop for Buffer<'a> {
+impl<'a, F> Drop for Buffer<'a, F> where F: AsRef<File> {
     fn drop(&mut self) {
         match self.surface {
             Some(surface) => {
