@@ -146,11 +146,17 @@ impl GbmBufferObject {
             return None;
         }
 
-        println!("converting to box");
+        println!("Converting to box");
         let b: Box<Rc<T>> = Box::from_raw(ptr);
 
-        println!("cloning");
-        Some(b.clone())
+        println!("Cloning");
+        let clone = &b.clone();
+
+        println!("Converting to raw");
+        b.into_raw();
+
+        println!("Returning clone");
+        Some(clone)
     }
 
     pub fn destroy(&self) {
