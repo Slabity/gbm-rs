@@ -150,10 +150,10 @@ impl GbmBufferObject {
         let b: Box<Rc<T>> = Box::from_raw(ptr);
 
         println!("Cloning");
-        let clone = &b.clone();
+        let clone = b.as_ref().clone();
 
         println!("Converting to raw");
-        b.into_raw();
+        Box::into_raw(b);
 
         println!("Returning clone");
         Some(clone)
